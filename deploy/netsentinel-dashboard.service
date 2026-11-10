@@ -1,0 +1,11 @@
+[Unit]
+Description=NetSentinel web dashboard
+After=netsentinel.service
+
+[Service]
+WorkingDirectory=/opt/netsentinel
+ExecStart=/opt/netsentinel/venv/bin/python main.py -c config.yaml dashboard
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,59 @@
+# NetSentinel тохиргоо
+general:
+  window_seconds: 5
+  db_path: netsentinel.db
+  log_path: alerts.jsonl
+
+capture:
+  interface: lo          # жишээ: enp0s3, eth0 (null бол үндсэн интерфэйс)
+  bpf_filter: ""
+
+performance:
+  enabled: true
+  interval_seconds: 10
+  ping_count: 5
+  targets: ["8.8.8.8", "1.1.1.1", "192.168.56.1"]
+  tcp_targets: []          # ["www.must.edu.mn:443"]
+  sla: {rtt_ms: 100, jitter_ms: 30, loss_pct: 2}
+
+rules:
+  port_scan_ports: 25
+  host_sweep_hosts: 20
+  syn_flood_syn: 300
+  syn_flood_ratio: 3.0
+  icmp_flood_pkts: 250
+  brute_force_conns: 20
+  brute_force_horizon_s: 30
+  slow_scan_ports: 40
+  slow_scan_horizon_s: 300
+  brute_force_ports: [21, 22, 23, 25, 110, 143, 445, 3306, 3389, 5900]
+  dns_qname_len: 52
+  dns_entropy: 3.8
+  dns_suspicious_count: 5
+
+statistical:
+  alpha: 0.05
+  z_threshold: 4.0
+  warmup_windows: 30
+  features: [pkts, bytes, syn, icmp_req, uniq_dports, max_src_dports, max_src_dsts, dns_long, syn_ratio]
+
+ml:
+  enabled: true
+  model_path: iforest.joblib
+  n_estimators: 200
+  train_windows: 120
+  threshold_percentile: 98.0
+  features: [syn_ratio, max_src_dports, max_src_dsts, max_dst_syn, icmp_req, dport_entropy,
+             mean_size, uniq_dports, rst, dns_long, max_auth_syn, arp]
+
+alerting:
+  cooldown_seconds: 60
+  console: true
+  telegram:
+    enabled: true          # true болгоод NS_TG_TOKEN, NS_TG_CHAT орчны хувьсагчийг тохируулна
+    token_env: NS_TG_TOKEN
+    chat_id_env: NS_TG_CHAT
+
+dashboard:
+  host: 127.0.0.1
+  port: 8050

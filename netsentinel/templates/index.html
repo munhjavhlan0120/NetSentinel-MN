@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NetSentinel — Аюулгүй байдлын хяналт</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --page:#0d0d0d; --surface:#1a1a19; --surface2:#222220; --line:#2c2c2a; --axis:#383835;
+    --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+    /* категорийн өнгө — тогтмол дараалал */
+    --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#9085e9; --c7:#898781;
+    /* ач холбогдлын (status) өнгө — зөвхөн severity-д */
+    --critical:#d03b3b; --high:#ec835a; --medium:#fab219; --low:#5598e7;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,"Segoe UI",Roboto,sans-serif; background:var(--page); color:var(--ink); }
+  header { position:sticky; top:0; z-index:5; display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+           padding:12px 20px; background:var(--surface); border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; letter-spacing:.2px; }
+  header h1 small { color:var(--muted); font-weight:400; margin-left:8px; }
+  .spacer { flex:1; }
+  .ctrl { display:flex; gap:8px; align-items:center; color:var(--ink2); font-size:13px; }
+  select, input[type=search] { background:var(--surface2); color:var(--ink); border:1px solid var(--axis);
+           padding:5px 8px; border-radius:6px; font:inherit; }
+  .live { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
+  .live i { width:8px; height:8px; border-radius:50%; background:#0ca30c; display:inline-block; }
+  main { padding:16px 20px 40px; display:grid; gap:14px; grid-template-columns:repeat(12,1fr); }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 16px; min-width:0; }
+  .card h2 { font-size:13px; margin:0 0 10px; color:var(--ink2); font-weight:600; display:flex; justify-content:space-between; align-items:baseline; }
+  .card h2 span { color:var(--muted); font-weight:400; font-size:12px; }
+  .s12{grid-column:span 12} .s8{grid-column:span 8} .s7{grid-column:span 7} .s6{grid-column:span 6} .s5{grid-column:span 5} .s4{grid-column:span 4}
+  @media (max-width: 1100px) { .s8,.s7,.s6,.s5,.s4 { grid-column:span 12; } }
+  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+  @media (max-width: 900px) { .kpis { grid-template-columns:repeat(3,1fr); } }
+  .kpi { background:var(--surface2); border-radius:8px; padding:10px 12px; border-left:3px solid var(--axis); }
+  .kpi b { display:block; font-size:24px; font-variant-numeric:tabular-nums; }
+  .kpi span { font-size:12px; color:var(--muted); }
+  .chart { position:relative; height:240px; }
+  .chart.tall { height:300px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:500; padding:6px 8px; border-bottom:1px solid var(--axis); position:sticky; top:0; background:var(--surface); }
+  td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:var(--surface2); }
+  .sev { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--ink2); }
+  .sev::before { content:""; width:9px; height:9px; border-radius:2px; background:var(--dot); }
+  .mono { font-family:ui-monospace,Consolas,monospace; font-size:12.5px; }
+  .scroll { max-height:380px; overflow:auto; }
+  .bar { height:6px; border-radius:3px; background:var(--c2); }
+  .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip { font-size:11px; color:var(--ink2); background:var(--surface2); border-radius:10px; padding:1px 7px; margin:0 3px 3px 0; display:inline-block; }
+  #graph { width:100%; height:330px; display:block; }
+  #graph text { fill:var(--ink2); font-size:11px; paint-order:stroke; stroke:var(--surface); stroke-width:3px; font-family:ui-monospace,Consolas,monospace; pointer-events:none; }
+  #graph circle { stroke:var(--surface); stroke-width:2px; cursor:pointer; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--ink2); margin-top:6px; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  aside#drawer { position:fixed; top:0; right:0; width:min(480px,100%); height:100%; background:var(--surface);
+           border-left:1px solid var(--axis); transform:translateX(100%); transition:transform .2s; z-index:10; overflow:auto; padding:18px; }
+  aside#drawer.open { transform:none; }
+  aside h3 { margin:0 0 4px; font-size:16px; }
+  aside dl { display:grid; grid-template-columns:110px 1fr; gap:6px 10px; font-size:13px; }
+  aside dt { color:var(--muted); }
+  aside h4 { font-size:13px; color:var(--ink2); margin:18px 0 8px; font-weight:600; }
+  .close { float:right; background:none; border:1px solid var(--axis); color:var(--ink2); border-radius:6px; padding:3px 9px; cursor:pointer; }
+  details summary { cursor:pointer; color:var(--ink2); font-size:13px; font-weight:600; }
+  .empty { color:var(--muted); font-size:13px; padding:20px 0; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NetSentinel <small>Сүлжээний аюулгүй байдлын хяналт ба халдлага илрүүлэх систем</small></h1>
+  <div class="spacer"></div>
+  <label class="ctrl">Хугацаа
+    <select id="range">
+      <option value="15">15 мин</option><option value="60" selected>1 цаг</option>
+      <option value="360">6 цаг</option><option value="1440">24 цаг</option><option value="5256000">Бүгд</option>
+    </select></label>
+  <span class="live"><i id="dot"></i><span id="updated">—</span></span>
+</header>
+
+<main>
+  <section class="card s12"><div class="kpis" id="kpis"></div></section>
+
+  <section class="card s12">
+    <h2>Халдлагын хугацааны шугам <span>минут тутмын сэрэмжлүүлэг, бүлгээр</span></h2>
+    <div class="chart"><canvas id="timeline"></canvas></div>
+  </section>
+
+  <section class="card s5">
+    <h2>Халдлагын төрөл <span>дарж шүүнэ</span></h2>
+    <div class="chart"><canvas id="cats"></canvas></div>
+  </section>
+  <section class="card s7">
+    <h2>Хамгийн идэвхтэй эх үүсвэр (халдагч) <span>дарж шүүнэ</span></h2>
+    <div class="scroll" style="max-height:240px"><table>
+      <thead><tr><th>IP хаяг</th><th>Зэрэг</th><th>Тоо</th><th></th><th>Ангилал</th></tr></thead>
+      <tbody id="topsrc"></tbody></table></div>
+  </section>
+
+  <section class="card s8">
+    <h2>Халдагч → зорилтын граф <span>зангилааг дарж шүүнэ</span></h2>
+    <svg id="graph" role="img" aria-label="Халдагч ба зорилтын холболтын граф"></svg>
+    <div class="legend">
+      <span><i style="background:var(--c2)"></i>Эх үүсвэр</span><span><i style="background:var(--c1)"></i>Зорилт</span>
+      <span><i style="background:var(--c6)"></i>Аль аль нь</span>
+      <span>Ирмэг: <i style="background:var(--critical)"></i>critical <i style="background:var(--high)"></i>high <i style="background:var(--medium)"></i>medium</span>
+    </div>
+  </section>
+  <section class="card s4">
+    <h2>Протоколын тархалт <span>пакет</span></h2>
+    <div class="chart" style="height:150px"><canvas id="proto"></canvas></div>
+    <h2 style="margin-top:14px">Илрүүлэгч <span>сэрэмжлүүлэг</span></h2>
+    <div class="chart" style="height:120px"><canvas id="dets"></canvas></div>
+  </section>
+
+  <section class="card s6">
+    <h2>Урсгал <span>пакет / 5 с цонх</span></h2>
+    <div class="chart"><canvas id="traffic"></canvas></div>
+  </section>
+  <section class="card s6">
+    <h2>ML аномалийн оноо <span>Isolation Forest</span></h2>
+    <div class="chart"><canvas id="mlscore"></canvas></div>
+  </section>
+
+  <section class="card s12">
+    <h2>Сэрэмжлүүлэг <span id="count"></span></h2>
+    <div class="filters">
+      <select id="fsev"><option value="">Бүх зэрэг</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select>
+      <select id="fcat"><option value="">Бүх ангилал</option></select>
+      <select id="fdet"><option value="">Бүх илрүүлэгч</option><option value="rule">rule</option><option value="statistical">statistical</option><option value="ml">ml</option><option value="performance">performance</option></select>
+      <input type="search" id="fq" placeholder="IP эсвэл түлхүүр үг…">
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Цаг</th><th>Зэрэг</th><th>Ангилал</th><th>Илрүүлэгч</th><th>Эх → зорилт</th><th>Тайлбар</th></tr></thead>
+      <tbody id="alerts"></tbody></table></div>
+  </section>
+
+  <section class="card s12">
+    <details><summary>Сүлжээний гүйцэтгэл (RTT, jitter) — туслах үзүүлэлт</summary>
+      <div class="chart" style="margin-top:10px"><canvas id="perf"></canvas></div></details>
+  </section>
+</main>
+
+<aside id="drawer" aria-live="polite"></aside>
+
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const FAM_COLORS = ['--c1','--c2','--c3','--c4','--c5','--c6','--c7'].map(css);
+const SEV = s => css('--' + s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const t2s = ts => new Date(ts * 1000).toLocaleTimeString('mn-MN', {hour12:false});
+const sevBadge = s => `<span class="sev" style="--dot:${SEV(s)}">${esc(s)}</span>`;
+const state = { severity:'', category:'', detector:'', q:'' };
+
+Chart.defaults.color = css('--ink2');
+Chart.defaults.borderColor = css('--line');
+Chart.defaults.font.family = 'system-ui, Segoe UI, Roboto, sans-serif';
+Chart.defaults.plugins.legend.labels.boxWidth = 10;
+Chart.defaults.animation = false;
+const axes = (extra={}) => ({ x:{ticks:{color:css('--muted'),maxTicksLimit:8},grid:{display:false}},
+                             y:{ticks:{color:css('--muted')},grid:{color:css('--line')},beginAtZero:true}, ...extra });
+
+const charts = {
+  timeline: new Chart(timeline, {type:'bar', data:{labels:[],datasets:[]},
+    options:{maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      scales:axes({x:{stacked:true,ticks:{color:css('--muted'),maxTicksLimit:12},grid:{display:false}},
+                   y:{stacked:true,ticks:{color:css('--muted'),precision:0},grid:{color:css('--line')}}}),
+      plugins:{legend:{position:'top',align:'start'}}}}),
+  cats: new Chart(cats, {type:'bar', data:{labels:[],datasets:[{data:[],backgroundColor:css('--c2'),borderRadius:4,barThickness:14}]},
+    options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:css('--muted'),precision:0},grid:{color:css('--line')}},y:{grid:{display:false}}},
+      onClick:(e,els)=>{ if(els.length){ setFilter('category', charts.cats.data.labels[els[0].index]); } }}}),
+  proto: new Chart(proto, {type:'bar', data:{labels:[],datasets:[{data:[],backgroundColor:css('--c1'),borderRadius:4,barThickness:14}]},
+    options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:css('--muted')},grid:{color:css('--line')}},y:{grid:{display:false}}}}}),
+  dets: new Chart(dets, {type:'bar', data:{labels:[],datasets:[{data:[],backgroundColor:css('--c3'),borderRadius:4,barThickness:12}]},
+    options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:css('--muted'),precision:0},grid:{color:css('--line')}},y:{grid:{display:false}}}}}),
+  traffic: new Chart(traffic, {type:'line', data:{labels:[],datasets:[
+      {label:'Нийт пакет',data:[],borderColor:css('--c1'),borderWidth:2,pointRadius:0,tension:.2},
+      {label:'TCP SYN',data:[],borderColor:css('--c2'),borderWidth:2,pointRadius:0,tension:.2}]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:axes()}}),
+  mlscore: new Chart(mlscore, {type:'line', data:{labels:[],datasets:[
+      {label:'Аномалийн оноо',data:[],borderColor:css('--c6'),borderWidth:2,pointRadius:0,tension:.2}]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      scales:axes({y:{ticks:{color:css('--muted')},grid:{color:css('--line')}}}),plugins:{legend:{display:false}}}}),
+  perf: new Chart(perf, {type:'line', data:{labels:[],datasets:[]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:axes()}}),
+};
+
+async function j(path, extra='') {
+  const r = await fetch(path + '?minutes=' + range.value + extra);
+  return r.json();
+}
+function setFilter(k, v) {
+  state[k] = (state[k] === v) ? '' : v;
+  ({severity:fsev, category:fcat, detector:fdet, q:fq})[k].value = state[k];
+  loadAlerts();
+  document.getElementById('alerts').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function renderKpis(s) {
+  const sev = Object.fromEntries(s.severity.map(r => [r.severity, r.n]));
+  const lw = s.last_window || {};
+  const k = [
+    ['Нийт сэрэмжлүүлэг', s.total, '--axis'], ['Critical', sev.critical||0, '--critical'],
+    ['High', sev.high||0, '--high'], ['Medium', sev.medium||0, '--medium'],
+    ['Халдагч IP', s.attackers, '--c2'], ['Урсгал, пакет/с', lw.pps ? lw.pps.toFixed(0) : '—', '--c1']];
+  kpis.innerHTML = k.map(([l,v,c]) => `<div class="kpi" style="border-left-color:var(${c})"><b>${esc(v)}</b><span>${l}</span></div>`).join('');
+  charts.cats.data.labels = s.category.map(r => r.category);
+  charts.cats.data.datasets[0].data = s.category.map(r => r.n);
+  charts.cats.update();
+  charts.dets.data.labels = s.detector.map(r => r.detector);
+  charts.dets.data.datasets[0].data = s.detector.map(r => r.n);
+  charts.dets.update();
+  const cur = [...fcat.options].map(o => o.value);
+  s.category.forEach(r => { if (!cur.includes(r.category)) fcat.add(new Option(r.category, r.category)); });
+}
+
+function renderTimeline(t) {
+  const c = charts.timeline;
+  c.data.labels = t.rows.map(r => t2s(r.t).slice(0,5));
+  c.data.datasets = t.families.map((f,i) => ({label:f, data:t.rows.map(r => r[f]||0),
+      backgroundColor:FAM_COLORS[i], borderColor:css('--surface'), borderWidth:{top:1}, borderRadius:2}))
+    .filter(d => d.data.some(v => v > 0));
+  c.update();
+}
+
+function renderTop(rows) {
+  const max = Math.max(1, ...rows.map(r => r.n));
+  const top = document.getElementById('topsrc');
+  top.innerHTML = rows.length ? rows.map(r => `<tr data-ip="${esc(r.src)}">
+      <td class="mono">${esc(r.src)}</td><td>${sevBadge(r.severity)}</td><td class="mono">${r.n}</td>
+      <td style="width:22%"><div class="bar" style="width:${100*r.n/max}%"></div></td>
+      <td>${r.categories.map(c => `<span class="chip">${esc(c)}</span>`).join('')}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">Халдагч илрээгүй</td></tr>';
+  top.querySelectorAll('tr[data-ip]').forEach(tr => tr.onclick = () => setFilter('q', tr.dataset.ip));
+}
+
+function renderGraph(g) {
+  const svg = document.getElementById('graph');
+  const W = svg.clientWidth || 700, H = svg.clientHeight || 330;
+  if (!g.nodes.length) { svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle">Холболт байхгүй</text>`; return; }
+  const N = g.nodes.map((n,i) => ({...n, x:W/2 + 120*Math.cos(2*Math.PI*i/g.nodes.length),
+                                     y:H/2 + 100*Math.sin(2*Math.PI*i/g.nodes.length), vx:0, vy:0}));
+  const idx = Object.fromEntries(N.map((n,i) => [n.id, i]));
+  const E = g.edges.map(e => ({...e, a:idx[e.source], b:idx[e.target]}));
+  // энгийн хүчний (force-directed) байршуулалт
+  for (let it = 0; it < 300; it++) {
+    for (let i = 0; i < N.length; i++) for (let k = i+1; k < N.length; k++) {
+      let dx = N[i].x-N[k].x, dy = N[i].y-N[k].y, d2 = dx*dx+dy*dy+0.01, f = 7000/d2, d = Math.sqrt(d2);
+      N[i].vx += f*dx/d; N[i].vy += f*dy/d; N[k].vx -= f*dx/d; N[k].vy -= f*dy/d; }
+    for (const e of E) { const A=N[e.a], B=N[e.b]; const dx=B.x-A.x, dy=B.y-A.y, d=Math.hypot(dx,dy)||1, f=(d-130)*0.02;
+      A.vx += f*dx/d; A.vy += f*dy/d; B.vx -= f*dx/d; B.vy -= f*dy/d; }
+    for (const n of N) { n.vx += (W/2-n.x)*0.004; n.vy += (H/2-n.y)*0.004;
+      n.x = Math.max(40, Math.min(W-40, n.x + n.vx*0.5)); n.y = Math.max(24, Math.min(H-24, n.y + n.vy*0.5)); n.vx*=0.6; n.vy*=0.6; }
+  }
+  const role = {source:'--c2', target:'--c1', both:'--c6'};
+  const r = n => 6 + Math.min(14, 3*Math.log2(1+n.n));
+  svg.innerHTML = `<defs>${['critical','high','medium','low'].map(s =>
+      `<marker id="m-${s}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="${SEV(s)}"/></marker>`).join('')}</defs>`
+    + E.map(e => { const A=N[e.a], B=N[e.b], d=Math.hypot(B.x-A.x,B.y-A.y)||1, rb=r(B)+3;
+        return `<line x1="${A.x}" y1="${A.y}" x2="${B.x-(B.x-A.x)*rb/d}" y2="${B.y-(B.y-A.y)*rb/d}" stroke="${SEV(e.severity)}"
+          stroke-width="${1.5+Math.log2(e.n)}" stroke-opacity=".85" marker-end="url(#m-${e.severity})"><title>${esc(e.source)} → ${esc(e.target)}: ${e.n} (${esc(e.categories.join(', '))})</title></line>`; }).join('')
+    + N.map(n => `<g data-ip="${esc(n.id)}"><circle cx="${n.x}" cy="${n.y}" r="${r(n)}" fill="${css(role[n.role])}"><title>${esc(n.id)} — ${n.n} сэрэмжлүүлэг</title></circle>
+        <text x="${n.x}" y="${n.y + r(n) + 12}" text-anchor="middle">${esc(n.id)}</text></g>`).join('');
+  svg.querySelectorAll('g[data-ip]').forEach(gn => gn.onclick = () => setFilter('q', gn.dataset.ip));
+}
+
+function renderTraffic(rows) {
+  const L = rows.map(r => t2s(r.ts));
+  charts.traffic.data.labels = L;
+  charts.traffic.data.datasets[0].data = rows.map(r => r.pkts);
+  charts.traffic.data.datasets[1].data = rows.map(r => r.syn);
+  charts.traffic.update();
+  charts.mlscore.data.labels = L;
+  charts.mlscore.data.datasets[0].data = rows.map(r => r.ml_score);
+  charts.mlscore.update();
+}
+
+function renderProto(p) {
+  charts.proto.data.labels = Object.keys(p);
+  charts.proto.data.datasets[0].data = Object.values(p);
+  charts.proto.update();
+}
+
+function renderPerf(rows) {
+  const targets = [...new Set(rows.map(r => r.target))], times = [...new Set(rows.map(r => r.ts))].sort();
+  charts.perf.data.labels = times.map(t2s);
+  charts.perf.data.datasets = targets.flatMap((t,i) => {
+    const m = Object.fromEntries(rows.filter(r => r.target === t).map(r => [r.ts, r]));
+    const col = FAM_COLORS[i % 6];
+    return [{label:t+' RTT (мс)', data:times.map(x => m[x]?.rtt_avg ?? null), borderColor:col, borderWidth:2, pointRadius:0, spanGaps:true},
+            {label:t+' jitter (мс)', data:times.map(x => m[x]?.jitter ?? null), borderColor:col, borderDash:[4,4], borderWidth:1.5, pointRadius:0, spanGaps:true}];
+  });
+  charts.perf.update();
+}
+
+async function loadAlerts() {
+  const p = Object.entries(state).filter(([k,v]) => v).map(([k,v]) => `&${k}=${encodeURIComponent(v)}`).join('');
+  const rows = await j('/api/alerts', p);
+  count.textContent = rows.length + ' мөр' + (p ? ' (шүүлттэй)' : '');
+  alerts.innerHTML = rows.length ? rows.map(a => `<tr data-id="${a.id}">
+      <td class="mono">${t2s(a.ts)}</td><td>${sevBadge(a.severity)}</td><td>${esc(a.category)}</td>
+      <td>${esc(a.detector)}</td><td class="mono">${esc(a.src||'—')} → ${esc(a.dst||'—')}</td><td>${esc(a.description)}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="empty">Сэрэмжлүүлэг алга</td></tr>';
+  alerts.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openDetail(tr.dataset.id));
+}
+
+async function openDetail(id) {
+  const d = await (await fetch('/api/alert/' + id)).json(), a = d.alert, w = d.window;
+  const feats = w ? Object.entries(w.features).filter(([k,v]) => v).slice(0, 14)
+      .map(([k,v]) => `<span class="chip">${esc(k)}=${typeof v === 'number' ? +v.toFixed(2) : esc(v)}</span>`).join('') : '';
+  drawer.innerHTML = `<button class="close" onclick="drawer.classList.remove('open')">Хаах ✕</button>
+    <h3>${esc(a.category)}</h3><p>${sevBadge(a.severity)} · ${esc(a.family)} · ${esc(a.detector)}</p>
+    <dl><dt>Цаг</dt><dd class="mono">${new Date(a.ts*1000).toLocaleString('mn-MN',{hour12:false})}</dd>
+      <dt>Эх үүсвэр</dt><dd class="mono">${esc(a.src||'—')}</dd><dt>Зорилт</dt><dd class="mono">${esc(a.dst||'—')}</dd>
+      <dt>Оноо</dt><dd class="mono">${a.score != null ? (+a.score).toFixed(3) : '—'}</dd>
+      <dt>Тайлбар</dt><dd>${esc(a.description)}</dd>
+      <dt>Нэмэлт</dt><dd class="mono">${esc(JSON.stringify(a.extra))}</dd></dl>
+    <h4>Тухайн цонхны шинж</h4><div>${feats || '<span class="empty">—</span>'}</div>
+    <h4>Холбоотой сэрэмжлүүлэг (${d.related.length})</h4>
+    <table><tbody>${d.related.map(r => `<tr><td class="mono">${t2s(r.ts)}</td><td>${sevBadge(r.severity)}</td><td>${esc(r.category)}</td>
+      <td class="mono">${esc(r.src||'—')} → ${esc(r.dst||'—')}</td></tr>`).join('')}</tbody></table>`;
+  drawer.classList.add('open');
+}
+
+async function refresh() {
+  try {
+    const [s, t, tops, g, tr, pr, pf] = await Promise.all([
+      j('/api/summary'), j('/api/timeline', '&bucket=60'), j('/api/top_sources'), j('/api/graph'),
+      j('/api/traffic'), j('/api/protocols'), j('/api/perf')]);
+    renderKpis(s); renderTimeline(t); renderTop(tops); renderGraph(g); renderTraffic(tr); renderProto(pr); renderPerf(pf);
+    await loadAlerts();
+    updated.textContent = 'шинэчлэгдсэн ' + t2s(Date.now()/1000);
+    dot.style.background = '#0ca30c';
+  } catch (e) { console.error(e); dot.style.background = SEV('critical'); updated.textContent = 'холболт тасарсан'; }
+}
+fsev.onchange = () => { state.severity = fsev.value; loadAlerts(); };
+fcat.onchange = () => { state.category = fcat.value; loadAlerts(); };
+fdet.onchange = () => { state.detector = fdet.value; loadAlerts(); };
+let qt; fq.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { state.q = fq.value; loadAlerts(); }, 300); };
+range.onchange = refresh;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') drawer.classList.remove('open'); });
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

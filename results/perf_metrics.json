@@ -1,0 +1,43 @@
+{
+  "samples": 2160,
+  "alerts": 279,
+  "events": {
+    "congestion": {
+      "detected": true,
+      "delay_s": 0.0,
+      "categories": [
+        "baseline_shift",
+        "high_jitter",
+        "high_latency",
+        "latency_shift"
+      ]
+    },
+    "loss_burst": {
+      "detected": true,
+      "delay_s": 0.0,
+      "categories": [
+        "packet_loss"
+      ]
+    },
+    "route_change": {
+      "detected": true,
+      "delay_s": 0.0,
+      "categories": [
+        "baseline_shift",
+        "latency_shift"
+      ]
+    },
+    "outage": {
+      "detected": true,
+      "delay_s": 0.0,
+      "categories": [
+        "host_unreachable"
+      ]
+    }
+  },
+  "false_alarms": 3,
+  "false_alarm_cats": [
+    "packet_loss"
+  ],
+  "naive_loss_false_alarms": 62
+}

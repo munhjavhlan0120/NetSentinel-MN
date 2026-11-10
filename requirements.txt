@@ -1,0 +1,9 @@
+scapy>=2.5
+psutil>=5.9
+numpy>=1.24
+scikit-learn>=1.3
+joblib>=1.3
+flask>=3.0
+pyyaml>=6.0
+matplotlib>=3.7   # зөвхөн туршилтын график зурахад
+pytest>=7.0       # зөвхөн тестэд

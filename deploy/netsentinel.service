@@ -1,0 +1,19 @@
+[Unit]
+Description=NetSentinel - Network Performance & Security Anomaly Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/netsentinel
+ExecStart=/opt/netsentinel/venv/bin/python main.py -c config.yaml live
+EnvironmentFile=-/etc/netsentinel.env
+Restart=on-failure
+RestartSec=5
+# Пакет барихад шаардлагатай хамгийн бага эрх (root-оор бүтнээр ажиллуулахгүй)
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
